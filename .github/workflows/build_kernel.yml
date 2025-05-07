@@ -34,8 +34,8 @@ jobs:
     permissions: write-all
     defaults:
       run:
-       shell: bash
-       working-directory: ${{ github.workspace }}
+        shell: bash
+        working-directory: ${{ github.workspace }}
 
     steps:
       - name: Set-up environment
@@ -45,112 +45,96 @@ jobs:
           sudo apt-get install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libfl-dev
           sudo apt-get install -y curl git ftp lftp wget libarchive-tools ccache python2 python2-dev
           sudo apt-get install -y zip unzip tar gzip bzip2 rar unrar cpio jq
-          
+
       - name: Cloning Kernel Source
         run: git clone --single-branch --depth=1 --no-tags ${{ github.event.inputs.KERNEL_SOURCE }} -b ${{ github.event.inputs.KERNEL_BRANCH }} ${{ github.workspace }}
 
       - name: Set-up Toolchain
         run: |
-         if [[ "${{ github.event.inputs.TOOLCHAIN_URL }}" == *.tar.gz ]]; then
-             wget -O clang-toolchain.tar.gz "${{ github.event.inputs.TOOLCHAIN_URL }}"
-             mkdir -p ${{ github.workspace }}/toolchain
-             tar -xzf clang-toolchain.tar.gz -C ${{ github.workspace }}/toolchain
-             rm -f clang-toolchain.tar.gz
-         else
-             git clone --single-branch --depth=1 --no-tags ${{ github.event.inputs.TOOLCHAIN_URL }} ${{ github.workspace }}/toolchain
-         fi
-         
+          if [[ "${{ github.event.inputs.TOOLCHAIN_URL }}" == *.tar.gz ]]; then
+            wget -O clang-toolchain.tar.gz "${{ github.event.inputs.TOOLCHAIN_URL }}"
+            mkdir -p ${{ github.workspace }}/toolchain
+            tar -xzf clang-toolchain.tar.gz -C ${{ github.workspace }}/toolchain
+            rm -f clang-toolchain.tar.gz
+          else
+            git clone --single-branch --depth=1 --no-tags ${{ github.event.inputs.TOOLCHAIN_URL }} ${{ github.workspace }}/toolchain
+          fi
+
       - name: Start Compilation
         run: |
-         objdir="${{ github.workspace }}/out"
-         anykernel="${{ github.workspace }}/anykernel"
-         clang_dir="${{ github.workspace }}/toolchain"
-         kernel_name="${{ github.event.inputs.KERNEL_NAME }}"
-         zip_name="${kernel_name}-$(date +"%d-%m-%Y-%H%M").zip"
-         output_dir=${{ github.workspace }}/compiled
-         
-         export PATH="${clang_dir}/bin:$PATH"
-         
-         mkdir -p $output_dir
-         
-         make_defconfig() {
+          objdir="${{ github.workspace }}/out"
+          anykernel="${{ github.workspace }}/anykernel"
+          clang_dir="${{ github.workspace }}/toolchain"
+          kernel_name="${{ github.event.inputs.KERNEL_NAME }}"
+          output_dir=${{ github.workspace }}/compiled
+
+          export PATH="${clang_dir}/bin:$PATH"
+
+          mkdir -p $output_dir
+
+          make_defconfig() {
             start=$(date +"%s")
             make -s ARCH=arm64 O=${objdir} ${{ github.event.inputs.CONFIG_FILE }} -j$(nproc --all)
-         }
-         
-         compile() {
+          }
+
+          compile() {
             cd "${{ github.workspace }}"
-            
+
             make -j$(nproc --all) \
-            O=${objdir} \
-            ARCH=arm64 \
-            CC=clang \
-            CROSS_COMPILE=aarch64-linux-gnu- \
-            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
-            AR=llvm-ar \
-            LLVM_NM=llvm-nm \
-            OBJCOPY=llvm-objcopy \
-            LD=ld.lld \
-            NM=llvm-nm \
-            LLVM=1 \
-            LLVM_IAS=1
-         }
-         
-         completion() {
+              O=${objdir} \
+              ARCH=arm64 \
+              CC=clang \
+              CROSS_COMPILE=aarch64-linux-gnu- \
+              CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+              CROSS_COMPILE_COMPAT=arm-linux-gnueabi- \
+              AR=llvm-ar \
+              LLVM_NM=llvm-nm \
+              OBJCOPY=llvm-objcopy \
+              LD=ld.lld \
+              NM=llvm-nm \
+              LLVM=1 \
+              LLVM_IAS=1
+          }
+
+          completion() {
             cd "${objdir}"
-            compiled_image="arch/arm64/boot/Image"
             compiled_gz_image="arch/arm64/boot/Image.gz"
-            compiled_gz_dtb="arch/arm64/boot/Image.gz-dtb"
             compiled_dtbo="arch/arm64/boot/dtbo.img"
             qcom_dtb="arch/arm64/boot/dts/vendor/qcom"
-           
-         if [[ -f ${compiled_image} || -f ${compiled_gz_image} || -f ${compiled_gz_dtb} ]]; then
+            specific_dtb="${qcom_dtb}/sdmmagpie-odessa-base.dtb"
+
+            if [[ -f ${compiled_gz_image} && -f ${compiled_dtbo} && -f ${specific_dtb} ]]; then
               git clone -q ${{ github.event.inputs.ANYKERNEL }} "$anykernel"
 
-              if [[ -f "${compiled_image}" ]]; then
-                  cp -f "${compiled_image}" "$anykernel/Image" || true
-                  cp -f "${compiled_image}" "$output_dir/Image" || true
-              elif [[ -f "${compiled_gz_image}" ]]; then
-                  cp -f "${compiled_gz_image}" "$anykernel/Image.gz" || true
-                  cp -f "${compiled_gz_image}" "$output_dir/Image.gz" || true
-              elif [[ -f "${compiled_gz_dtb}" ]]; then
-                  cp -f "${compiled_gz_dtb}" "$anykernel/Image.gz-dtb" || true
-                  cp -f "${compiled_gz_dtb}" "$output_dir/Image.gz-dtb" || true
-              fi
-              
-              if [[ -f "${compiled_dtbo}" ]]; then
-                  cp -f "${compiled_dtbo}" "$anykernel/dtbo.img" || true
-                  cp -f "${compiled_dtbo}" "$output_dir/dtbo.img" || true
-              fi
-              
-              if ls ${qcom_dtb}/*.dtb 1> /dev/null 2>&1; then
-                  cp -f ${qcom_dtb}/*.dtb "$output_dir" || true
-              fi
+              cp -f "${compiled_gz_image}" "$anykernel/Image.gz" || true
+              cp -f "${compiled_dtbo}" "$anykernel/dtbo.img" || true
+              cp -f "${specific_dtb}" "$anykernel/dtb" || true
 
               cd "$anykernel"
-              zip -r AnyKernel.zip *
-              mv -- "AnyKernel.zip" "$zip_name"
-              mv -- "$anykernel/$zip_name" "$output_dir/$zip_name"
+              zip_name="CosmicFresh-${kernel_name}-$(date +"%d-%m-%Y-%H%M").zip"
+              zip -r9 "$zip_name" META-INF version anykernel.sh tools Image.gz dtb dtbo.img
+
+              mv -- "$zip_name" "$output_dir/$zip_name"
+
+              rm -f Image.gz dtb dtbo.img
               rm -rf "$anykernel"
-            
+
               end=$(date +"%s")
               diff=$((end - start))
               echo -e "BUILD COMPLETED IN ${diff} SECONDS"
-         else
+            else
               echo "ERROR: Some output is missing!"
               exit 1
-         fi
-         }
-         
-         make_defconfig
-         compile
-         completion
-         
-         # Set-up file info
-         zip_file=$(find $output_dir -name '${{ github.event.inputs.KERNEL_NAME }}*.zip' -print -quit)
-         echo "ZIP_NAME=$(basename "$zip_file" .zip)" >> $GITHUB_ENV
-         echo "RELEASE_DATE=$(date +'%B %-d, %Y %H:%M')" >> $GITHUB_ENV
+            fi
+          }
+
+          make_defconfig
+          compile
+          completion
+
+          zip_file=$(find $output_dir -name 'CosmicFresh-${kernel_name}-*.zip' -print -quit)
+          echo "ZIP_NAME=$(basename "$zip_file" .zip)" >> $GITHUB_ENV
+          echo "RELEASE_DATE=$(date +'%B %-d, %Y %H:%M')" >> $GITHUB_ENV
 
         continue-on-error: false
 
@@ -162,4 +146,4 @@ jobs:
           name: ${{ env.ZIP_NAME }}
           tag_name: ${{ github.run_id }}
           body: |
-           Released on ${{ env.RELEASE_DATE }}
+            Released on ${{ env.RELEASE_DATE }}
