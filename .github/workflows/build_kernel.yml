@@ -6,11 +6,11 @@ on:
       KERNEL_SOURCE:
         description: 'Kernel source URL'
         required: true
-        default: 'https://github.com/vbajs/perf_kernel_xiaomi_sm6150'
+        default: 'https://github.com/thiaguin444/kernel_motorola_illinois'
       KERNEL_BRANCH:
         description: 'Kernel branch'
         required: true
-        default: 'sweet'
+        default: 'fushiguro-inline'
       KERNEL_NAME:
         description: 'Kernel/zip name'
         required: true
@@ -18,15 +18,15 @@ on:
       CONFIG_FILE:
         description: 'Config file (You can put multiple configs separated by space)'
         required: true
-        default: 'sweet_defconfig vendor/debugfs.config'
+        default: 'vendor/odessa_defconfig vendor/debugfs.config'
       TOOLCHAIN_URL:
         description: "Clone URL of your toolchain"
         required: true
-        default: 'https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/refs/tags/android-15.0.0_r1/clang-r522817.tar.gz'
+        default: 'https://github.com/kdrag0n/proton-clang.git'
       ANYKERNEL:
         description: "Clone URL of your AnyKernel"
         required: true
-        default: 'https://github.com/vbajs/kernel_xiaomi_sm6150'
+        default: 'https://github.com/thiaguin444/AnyKernel3.git'
 
 jobs:
   Build_Kernel:
