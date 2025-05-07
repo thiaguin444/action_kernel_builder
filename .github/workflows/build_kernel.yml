@@ -42,7 +42,7 @@ jobs:
         run: |
           rm -rf ${{ github.workspace }}/*
           sudo apt-get update
-          sudo apt-get install -y build-essential bc libssl-dev libfl-dev
+          sudo apt-get install -y build-essential bc gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi libssl-dev libfl-dev
           sudo apt-get install -y curl git ftp lftp wget libarchive-tools ccache
           sudo apt-get install -y zip unzip tar gzip bzip2 rar unrar cpio jq
 
@@ -80,18 +80,24 @@ jobs:
           compile() {
             cd "${{ github.workspace }}"
 
-            # Remover qualquer configuração com GCC, usar apenas Clang e LLVM
             make -j$(nproc --all) \
               O=${objdir} \
               ARCH=arm64 \
               CC=clang \
+              CROSS_COMPILE="aarch64-linux-gnu-" \
+              CROSS_COMPILE_ARM32="arm-linux-gnueabi-" \
+              CROSS_COMPILE_COMPAT="arm-linux-gnueabi-" \
               AR=llvm-ar \
               LLVM_NM=llvm-nm \
               OBJCOPY=llvm-objcopy \
               LD=ld.lld \
               NM=llvm-nm \
               LLVM=1 \
-              LLVM_IAS=1
+              LLVM_IAS=1 \
+              HOSTCC=clang \
+              HOSTCXX=clang++ \
+              HOSTLD=ld.lld \
+              HOSTAR=llvm-ar
           }
 
           completion() {
